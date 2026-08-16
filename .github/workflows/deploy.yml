@@ -46,6 +46,7 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: false
+          ignorefile: .trivyignore
 
       - name: Push backend image to Docker Hub
         uses: docker/build-push-action@v4
