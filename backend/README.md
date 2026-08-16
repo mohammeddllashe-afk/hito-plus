@@ -17,6 +17,15 @@ Option B — Docker (recommended for quick setup):
    - The backend runs migrations on startup and starts in dev mode.
 3. Backend will be available at http://localhost:3000
 
+Production image
+----------------
+A production-ready image is provided via `backend/Dockerfile.prod` (multi-stage build):
+- Builds only production dependencies (npm ci --production)
+- Copies source and exposes port 3000
+- Does NOT run migrations by default (recommended to run migrations as part of CI/CD pipeline)
+
+Example production compose (for reference): `docker-compose.prod.yml` (uses Dockerfile.prod). Fill JWT_SECRET and other secrets using env or secret manager.
+
 Endpoints (examples):
 - GET /health
 - POST /api/v1/auth/register
@@ -26,3 +35,4 @@ Endpoints (examples):
 
 Notes:
 - This is a starter skeleton. Add production-grade auth storage, validation, RBAC, secrets management and monitoring before production use.
+- Migrations should be executed via CI/CD or a specific admin job; avoid running migrations automatically at container start in production.
