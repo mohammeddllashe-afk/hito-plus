@@ -12,7 +12,12 @@ exports.up = async function(knex) {
   };
 
   const tenantInsert = await knex('tenants').insert(tenantRow).returning('id');
-  const tenant_id = Array.isArray(tenantInsert) ? tenantInsert[0] : tenantInsert;
+  let tenant_id = tenantInsert;
+  if (Array.isArray(tenantInsert)) {
+    tenant_id = tenantInsert[0] && tenantInsert[0].id ? tenantInsert[0].id : tenantInsert[0];
+  } else if (tenantInsert && tenantInsert.id) {
+    tenant_id = tenantInsert.id;
+  }
 
   // Create demo user with hashed password
   const passwordHash = await bcrypt.hash('Password123!', SALT_ROUNDS);
@@ -30,7 +35,12 @@ exports.up = async function(knex) {
     updated_at: new Date()
   };
   const userInsert = await knex('users').insert(userRow).returning('id');
-  const user_id = Array.isArray(userInsert) ? userInsert[0] : userInsert;
+  let user_id = userInsert;
+  if (Array.isArray(userInsert)) {
+    user_id = userInsert[0] && userInsert[0].id ? userInsert[0].id : userInsert[0];
+  } else if (userInsert && userInsert.id) {
+    user_id = userInsert.id;
+  }
 
   // Create a sample task assigned to demo user
   const taskRow = {
