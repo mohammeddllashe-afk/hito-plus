@@ -11,13 +11,19 @@ exports.up = async function(knex) {
     created_at: new Date()
   };
 
-  const tenantInsert = await knex('tenants').insert(tenantRow).returning('id');
-  let tenant_id = tenantInsert;
-  if (Array.isArray(tenantInsert)) {
-    tenant_id = tenantInsert[0] && tenantInsert[0].id ? tenantInsert[0].id : tenantInsert[0];
-  } else if (tenantInsert && tenantInsert.id) {
-    tenant_id = tenantInsert.id;
+  function extractId(res) {
+    if (!res) return res;
+    if (Array.isArray(res)) {
+      const first = res[0];
+      if (first && typeof first === 'object' && first.id) return first.id;
+      return first;
+    }
+    if (res && typeof res === 'object') return res.id || res;
+    return res;
   }
+
+  const tenantInsert = await knex('tenants').insert(tenantRow).returning('id');
+  const tenant_id = extractId(tenantInsert);
 
   // Create demo user with hashed password
   const passwordHash = await bcrypt.hash('Password123!', SALT_ROUNDS);
@@ -35,12 +41,7 @@ exports.up = async function(knex) {
     updated_at: new Date()
   };
   const userInsert = await knex('users').insert(userRow).returning('id');
-  let user_id = userInsert;
-  if (Array.isArray(userInsert)) {
-    user_id = userInsert[0] && userInsert[0].id ? userInsert[0].id : userInsert[0];
-  } else if (userInsert && userInsert.id) {
-    user_id = userInsert.id;
-  }
+  const user_id = extractId(userInsert);
 
   // Create a sample task assigned to demo user
   const taskRow = {
@@ -56,7 +57,7 @@ exports.up = async function(knex) {
     updated_at: new Date()
   };
   const taskInsert = await knex('tasks').insert(taskRow).returning('id');
-  const task_id = Array.isArray(taskInsert) ? taskInsert[0] : taskInsert;
+  const task_id = extractId(taskInsert);
 
   // Link created_by and assignee to user
   await knex('tasks').where({ id: task_id }).update({ created_by: user_id, assignee_user_id: user_id });
