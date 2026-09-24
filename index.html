@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Sweet Tic Tac | Kitchen</title>
+
+<style>
+:root{
+  --bg:#0b0d10;
+  --panel:#11151a;
+  --card:#171c22;
+  --line:#2a313a;
+  --text:#f7f8fa;
+  --muted:#98a2b3;
+  --green:#2bd576;
+  --yellow:#f6b73c;
+  --red:#ff4d4f;
+}
+
+*{box-sizing:border-box}
+
+html,body{
+  margin:0;
+  min-height:100%;
+  background:radial-gradient(circle at top right,#17202a 0,#0b0d10 38%,#080a0c 100%);
+  color:var(--text);
+  font-family:Arial,Helvetica,sans-serif;
+}
+
+header{
+  position:sticky;
+  top:0;
+  z-index:20;
+  height:78px;
+  padding:0 24px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:rgba(11,13,16,.92);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+
+.logo{
+  width:42px;
+  height:42px;
+  border-radius:12px;
+  background:linear-gradient(135deg,#ff5a5f,#ff8b5c);
+  display:grid;
+  place-items:center;
+  font-weight:900;
+}
+
+h1{
+  font-size:28px;
+  margin:0;
+}
+
+.sub{
+  font-size:13px;
+  color:var(--muted);
+}
+
+.clock{
+  font-size:20px;
+  font-weight:800;
+}
+
+main{
+  max-width:1600px;
+  margin:auto;
+  padding:22px;
+}
+
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+  margin-bottom:20px;
+  flex-wrap:wrap;
+}
+
+.stats{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.stat{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 14px;
+  color:#d6dbe3;
+}
+
+.stat strong{
+  color:#fff;
+  font-size:18px;
+}
+
+button{
+  font:inherit;
+  border:0;
+  cursor:pointer;
+  font-weight:800;
+  border-radius:10px;
+}
+
+.add{
+  background:#fff;
+  color:#111;
+  padding:12px 17px;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+  gap:16px;
+}
+
+.card{
+  background:linear-gradient(180deg,#1a2027,#151a20);
+  border:1px solid var(--line);
+  border-radius:16px;
+  overflow:hidden;
+  box-shadow:0 14px 40px rgba(0,0,0,.32);
+}
+
+.card.new{
+  border-color:#4b5664;
+}
+
+.card.done{
+  opacity:.62;
+}
+
+.cardTop{
+  padding:14px 16px;
+  display:flex;
+  justify-content:space-between;
+  border-bottom:1px solid var(--line);
+}
+
+.num{
+  font-size:25px;
+  font-weight:900;
+}
+
+.status{
+  font-size:12px;
+  padding:6px 10px;
+  border-radius:999px;
+  font-weight:900;
+}
+
+.s-new{
+  background:#3c2430;
+  color:#ffb2c0;
+}
+
+.s-work{
+  background:#3d321a;
+  color:#ffd677;
+}
+
+.s-done{
+  background:#173827;
+  color:#84eab0;
+}
+
+.timer{
+  font-size:15px;
+  font-weight:800;
+  margin-top:5px;
+}
+
+.timer.late{
+  color:#ff7b7b;
+}
+
+.cardBody{
+  padding:16px;
+}
+
+.customer{
+  font-size:16px;
+  font-weight:800;
+  margin-bottom:12px;
+}
+
+.items{
+  white-space:pre-wrap;
+  font-size:19px;
+  line-height:1.65;
+  min-height:110px;
+}
+
+.note{
+  margin-top:14px;
+  background:#0f1318;
+  border:1px solid #252c35;
+  padding:10px 12px;
+  border-radius:10px;
+  color:#d7dce3;
+}
+
+.times{
+  margin-top:14px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  font-size:13px;
+  color:var(--muted);
+}
+
+.actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+  padding:14px 16px;
+  border-top:1px solid var(--line);
+  background:#12171c;
+}
+
+.btn-accept{
+  background:var(--yellow);
+  color:#1a1304;
+  padding:13px;
+}
+
+.btn-done{
+  background:var(--green);
+  color:#07170d;
+  padding:13px;
+}
+
+.btn-delete{
+  background:var(--red);
+  color:white;
+  padding:13px;
+}
+
+.btn-secondary{
+  background:#2a313a;
+  color:white;
+  padding:13px;
+}
+
+.empty{
+  grid-column:1/-1;
+  text-align:center;
+  padding:90px 20px;
+  color:var(--muted);
+  font-size:18px;
+}
+
+.modalWrap{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.62);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:50;
+  padding:20px;
+}
+
+.modalWrap.open{
+  display:flex;
+}
+
+.modal{
+  width:min(560px,100%);
+  background:#151a20;
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:18px;
+}
+
+label{
+  display:block;
+  font-size:13px;
+  color:#cfd5dd;
+  margin:9px 0 6px;
+}
+
+input,textarea{
+  width:100%;
+  background:#0d1116;
+  color:#fff;
+  border:1px solid #2c3440;
+  border-radius:10px;
+  padding:12px;
+  font:inherit;
+}
+
+textarea{
+  min-height:110px;
+  resize:vertical;
+}
+
+.modalActions{
+  display:flex;
+  gap:9px;
+  margin-top:14px;
+}
+
+.modalActions button{
+  flex:1;
+  padding:12px;
+}
+
+@media(max-width:620px){
+  header{
+    height:68px;
+    padding:0 14px;
+  }
+
+  h1{
+    font-size:22px;
+  }
+
+  .clock{
+    font-size:16px;
+  }
+
+  main{
+    padding:14px;
+  }
+
+  .grid{
+    grid-template-columns:1fr;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo">ST</div>
+    <div>
+      <h1>Sweet Tic Tac</h1>
+      <div class="sub">Kitchen Orders</div>
+    </div>
+  </div>
+
+  <div class="clock" id="clock"></div>
+</header>
+
+<main>
+
+  <div class="topbar">
+
+    <div class="stats">
+      <div class="stat">חדשות: <strong id="newCount">0</strong></div>
+      <div class="stat">בטיפול: <strong id="workCount">0</strong></div>
+      <div class="stat">הושלמו: <strong id="doneCount">0</strong></div>
+    </div>
+
+    <button class="add" onclick="openModal()">+ הוספת הזמנה</button>
+
+  </div>
+
+  <section class="grid" id="orders"></section>
+
+</main>
+
+<div class="modalWrap" id="modalWrap">
+
+  <div class="modal">
+
+    <h2>הזמנה חדשה</h2>
+
+    <label>שם לקוח</label>
+    <input id="customer" placeholder="שם לקוח" />
+
+    <label>מספר הזמנה</label>
+    <input id="orderNo" placeholder="נוצר אוטומטית" />
+
+    <label>פריטי הזמנה</label>
+    <textarea id="items" placeholder="לדוגמה:
+2 × קרפ נוטלה
+1 × וופל בלגי
+1 × אייס קפה"></textarea>
+
+    <label>הערות</label>
+    <textarea id="notes" placeholder="הערה למטבח / לקחת / אלרגיה"></textarea>
+
+    <div class="modalActions">
+      <button class="btn-secondary" onclick="closeModal()">ביטול</button>
+      <button class="btn-done" onclick="addOrder()">שלח למטבח</button>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+
+let orders = JSON.parse(
+  localStorage.getItem('stt_kitchen_orders') || '[]'
+);
+
+function save(){
+  localStorage.setItem(
+    'stt_kitchen_orders',
+    JSON.stringify(orders)
+  );
+}
+
+function pad(n){
+  return String(n).padStart(2,'0');
+}
+
+function formatTime(d = new Date()){
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function nextOrderNo(){
+
+  const n = Number(
+    localStorage.getItem('stt_next_order') || '1001'
+  );
+
+  localStorage.setItem(
+    'stt_next_order',
+    String(n + 1)
+  );
+
+  return n;
+}
+
+function esc(s=''){
+
+  return String(s).replace(/[&<>"']/g,m=>({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#039;'
+  }[m]));
+
+}
+
+function openModal(){
+  document.getElementById('modalWrap').classList.add('open');
+}
+
+function closeModal(){
+  document.getElementById('modalWrap').classList.remove('open');
+}
+
+function addOrder(){
+
+  const items =
+  document.getElementById('items').value.trim();
+
+  if(!items){
+    alert('יש להכניס פריטי הזמנה');
+    return;
+  }
+
+  const order = {
+
+    id: Date.now(),
+
+    no:
+    document.getElementById('orderNo').value.trim()
+    || nextOrderNo(),
+
+    customer:
+    document.getElementById('customer').value.trim()
+    || 'לקוח',
+
+    items: items,
+
+    notes:
+    document.getElementById('notes').value.trim(),
+
+    createdAt: Date.now(),
+
+    createdTime: formatTime(),
+
+    acceptedTime: null,
+
+    doneTime: null,
+
+    status:'new'
+  };
+
+  orders.unshift(order);
+
+  save();
+
+  render();
+
+  sound();
+
+  document.getElementById('customer').value='';
+  document.getElementById('orderNo').value='';
+  document.getElementById('items').value='';
+  document.getElementById('notes').value='';
+
+  closeModal();
+}
+
+function acceptOrder(id){
+
+  orders = orders.map(o =>
+    o.id === id
+    ? {
+        ...o,
+        status:'work',
+        acceptedTime:o.acceptedTime || formatTime()
+      }
+    : o
+  );
+
+  save();
+  render();
+}
+
+function doneOrder(id){
+
+  orders = orders.map(o =>
+    o.id === id
+    ? {
+        ...o,
+        status:'done',
+        doneTime:o.doneTime || formatTime()
+      }
+    : o
+  );
+
+  save();
+  render();
+}
+
+function deleteOrder(id){
+
+  if(!confirm('להסיר את ההזמנה מהמסך?'))
+    return;
+
+  orders =
+  orders.filter(o => o.id !== id);
+
+  save();
+  render();
+}
+
+function elapsed(createdAt){
+
+  const diff =
+  Math.max(0, Date.now() - createdAt);
+
+  const m =
+  Math.floor(diff / 60000);
+
+  const s =
+  Math.floor((diff % 60000) / 1000);
+
+  return `${pad(m)}:${pad(s)}`;
+}
+
+function render(){
+
+  document.getElementById('newCount').textContent =
+  orders.filter(o => o.status === 'new').length;
+
+  document.getElementById('workCount').textContent =
+  orders.filter(o => o.status === 'work').length;
+
+  document.getElementById('doneCount').textContent =
+  orders.filter(o => o.status === 'done').length;
+
+  const root =
+  document.getElementById('orders');
+
+  if(!orders.length){
+
+    root.innerHTML =
+    '<div class="empty">אין כרגע הזמנות פעילות</div>';
+
+    return;
+  }
+
+  root.innerHTML =
+  orders.map(o => {
+
+    const status =
+    o.status === 'new'
+
+    ? '<span class="status s-new">חדש</span>'
+
+    : o.status === 'work'
+
+    ? '<span class="status s-work">בטיפול</span>'
+
+    : '<span class="status s-done">טופל</span>';
+
+    const late =
+    (Date.now() - o.createdAt) > 10 * 60 * 1000
+    ? 'late'
+    : '';
+
+    return `
+
+    <article class="card ${o.status==='new'?'new':''} ${o.status==='done'?'done':''}">
+
+      <div class="cardTop">
+
+        <div>
+
+          <div class="num">
+            #${esc(o.no)}
+          </div>
+
+          <div class="timer ${late}">
+            ⏱ ${elapsed(o.createdAt)}
+          </div>
+
+        </div>
+
+        ${status}
+
+      </div>
+
+      <div class="cardBody">
+
+        <div class="customer">
+          ${esc(o.customer)}
+        </div>
+
+        <div class="items">
+          ${esc(o.items)}
+        </div>
+
+        ${
+          o.notes
+          ? `<div class="note">
+              הערה: ${esc(o.notes)}
+             </div>`
+          : ''
+        }
+
+        <div class="times">
+
+          <div>
+            נכנסה: ${esc(o.createdTime)}
+          </div>
+
+          <div>
+            אישור: ${o.acceptedTime || '—'}
+          </div>
+
+          <div>
+            טופל: ${o.doneTime || '—'}
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="actions">
+
+        ${
+          o.status === 'new'
+          ? `<button
+              class="btn-accept"
+              onclick="acceptOrder(${o.id})">
+              אישור
+             </button>`
+          : ''
+        }
+
+        ${
+          o.status !== 'done'
+          ? `<button
+              class="btn-done"
+              onclick="doneOrder(${o.id})">
+              טופל
+             </button>`
+          : ''
+        }
+
+        ${
+          o.status === 'done'
+          ? `<button
+              class="btn-secondary"
+              onclick="acceptOrder(${o.id})">
+              החזר לטיפול
+             </button>`
+          : ''
+        }
+
+        <button
+          class="btn-delete"
+          onclick="deleteOrder(${o.id})">
+          הסר
+        </button>
+
+      </div>
+
+    </article>
+
+    `;
+
+  }).join('');
+}
+
+function sound(){
+
+  try{
+
+    const ctx =
+    new (window.AudioContext || window.webkitAudioContext)();
+
+    [880,1175,880].forEach((freq,i)=>{
+
+      const osc =
+      ctx.createOscillator();
+
+      const gain =
+      ctx.createGain();
+
+      osc.connect(gain);
+
+      gain.connect(ctx.destination);
+
+      osc.frequency.value = freq;
+
+      const start =
+      ctx.currentTime + i * .18;
+
+      gain.gain.setValueAtTime(
+        .001,
+        start
+      );
+
+      gain.gain.exponentialRampToValueAtTime(
+        .22,
+        start + .02
+      );
+
+      gain.gain.exponentialRampToValueAtTime(
+        .001,
+        start + .14
+      );
+
+      osc.start(start);
+
+      osc.stop(start + .15);
+
+    });
+
+  }catch(e){}
+
+}
+
+function tick(){
+
+  document.getElementById('clock').textContent =
+  new Date().toLocaleTimeString(
+    'he-IL',
+    {
+      hour:'2-digit',
+      minute:'2-digit',
+      second:'2-digit'
+    }
+  );
+
+  render();
+}
+
+setInterval(tick,1000);
+
+tick();
+
+window.addEventListener('storage',e=>{
+
+  if(e.key === 'stt_kitchen_orders'){
+
+    orders =
+    JSON.parse(e.newValue || '[]');
+
+    render();
+
+    sound();
+
+  }
+
+});
+
+</script>
+
+</body>
+</html>
