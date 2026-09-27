@@ -534,10 +534,22 @@ function normalizeOrders(list){
 }
 
 function serverBase(){
-  const configured = localStorage.getItem(serverKey);
-  if(configured) return configured.replace(/\/$/, '');
+  const configured = (localStorage.getItem(serverKey) || '').trim().replace(/\/$/, '');
+  const currentOrigin = window.location.origin;
+  const currentHost = window.location.hostname.toLowerCase();
+  const isLocalHost = /(^localhost$|^127\.0\.0\.1$|^0\.0\.0\.0$|^::1$|^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[0-1])\.)/i.test(currentHost);
+  const isPrivateServer = /(localhost|127\.0\.0\.1|0\.0\.0\.0|::1|192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/i.test(configured);
+
+  if(!isLocalHost && currentOrigin){
+    if(isPrivateServer){
+      localStorage.setItem(serverKey, currentOrigin);
+    }
+    return currentOrigin;
+  }
+
+  if(configured) return configured;
   if(window.location.protocol === 'http:' || window.location.protocol === 'https:'){
-    return window.location.origin;
+    return currentOrigin;
   }
   return 'http://localhost:3000';
 }
