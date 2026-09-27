@@ -579,12 +579,6 @@ function applyOrders(nextOrders, notify = false){
 
   const safeOrders = sanitizeOrders(nextOrders);
 
-  if(safeOrders.length === 0 && orders.length > 0){
-    localStorage.setItem(ordersKey, JSON.stringify(orders));
-    render();
-    return;
-  }
-
   const added = safeOrders.filter(o => !knownOrderIds.has(o.id) && o.status === 'new');
   orders = safeOrders;
   knownOrderIds = new Set(orders.map(o => o.id));
