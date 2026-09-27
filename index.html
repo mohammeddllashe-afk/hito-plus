@@ -835,8 +835,8 @@ function deleteOrder(id){
 
   orders = orders.filter(o => o.id !== id);
   localStorage.setItem(ordersKey, JSON.stringify(orders));
-  pushOrders();
   render();
+  pushOrders();
 }
 
 function clearDoneOrders(){
