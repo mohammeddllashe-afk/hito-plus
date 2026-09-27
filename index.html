@@ -492,7 +492,13 @@ const serverKey = 'stt_server_url';
 
 function sanitizeOrders(list){
   if(!Array.isArray(list)) return [];
-  return list.filter(order => order && typeof order === 'object' && (order.id !== undefined || order.no !== undefined));
+  return list.filter(order => {
+    if(!order || typeof order !== 'object') return false;
+    const isDemo = String(order.id).trim() === 'v1'
+      || String(order.customer || '').trim().toLowerCase() === 'test'
+      || Number(order.no) === 1001;
+    return !isDemo && (order.id !== undefined || order.no !== undefined);
+  });
 }
 
 let orders = [];
@@ -845,16 +851,11 @@ function clearDoneOrders(){
 }
 
 function elapsed(createdAt, endAt = Date.now()){
-
-  const diff =
-  Math.max(0, endAt - createdAt);
-
-  const m =
-  Math.floor(diff / 60000);
-
-  const s =
-  Math.floor((diff % 60000) / 1000);
-
+  const safeCreatedAt = Number(createdAt) || Date.now();
+  const safeEndAt = Number(endAt) || Date.now();
+  const diff = Math.max(0, safeEndAt - safeCreatedAt);
+  const m = Math.floor(diff / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
   return `${pad(m)}:${pad(s)}`;
 }
 
@@ -885,7 +886,7 @@ function render(){
 
   root.innerHTML =
   orders.map(o => {
-
+    const createdAt = Number(o.createdAt) || Date.now();
     const status =
     o.status === 'new'
 
@@ -898,7 +899,7 @@ function render(){
     : '<span class="status s-done">טופל</span>';
 
     const late =
-    (Date.now() - o.createdAt) > 10 * 60 * 1000
+    (Date.now() - createdAt) > 10 * 60 * 1000
     ? 'late'
     : '';
 

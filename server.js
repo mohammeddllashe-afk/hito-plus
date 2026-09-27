@@ -3,8 +3,20 @@ const fs = require('fs');
 const path = require('path');
 const port = Number(process.env.PORT || 3000);
 const dataPath = path.join(__dirname, 'orders.json');
+
+function stripDemoOrders(list) {
+  if (!Array.isArray(list)) return [];
+  return list.filter((order) => {
+    if (!order || typeof order !== 'object') return false;
+    const isDemo = String(order.id).trim() === 'v1'
+      || String(order.customer || '').trim().toLowerCase() === 'test'
+      || Number(order.no) === 1001;
+    return !isDemo;
+  });
+}
+
 let orders = fs.existsSync(dataPath)
-  ? JSON.parse(fs.readFileSync(dataPath, 'utf8'))
+  ? stripDemoOrders(JSON.parse(fs.readFileSync(dataPath, 'utf8')))
   : [];
 const clients = new Set();
 
@@ -15,7 +27,7 @@ function cors(response){
 }
 
 function save(){
-  fs.writeFileSync(dataPath, JSON.stringify(orders, null, 2));
+  fs.writeFileSync(dataPath, JSON.stringify(stripDemoOrders(orders), null, 2));
 }
 
 function broadcast(){

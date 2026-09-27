@@ -4,7 +4,8 @@ const path = require('node:path');
 (async () => {
   const ordersHandler = require(path.join(__dirname, '..', 'api', 'orders.js'));
 
-  const body = JSON.stringify([{ id: 'v1', status: 'new', no: 1001, customer: 'Test' }]);
+  const demoBody = JSON.stringify([{ id: 'v1', status: 'new', no: 1001, customer: 'Test' }]);
+  const realBody = JSON.stringify([{ id: Date.now(), status: 'new', no: 2001, customer: 'Alice', items: 'Coffee' }]);
 
   function createResponse() {
     return {
@@ -33,8 +34,12 @@ const path = require('node:path');
   assert.equal(readRes.statusCode, 200);
 
   const publicWriteRes = createResponse();
-  await ordersHandler({ method: 'PUT', url: '/api/orders', body, headers: {} }, publicWriteRes);
+  await ordersHandler({ method: 'PUT', url: '/api/orders', body: realBody, headers: {} }, publicWriteRes);
   assert.equal(publicWriteRes.statusCode, 204);
+
+  const demoCleanupRes = createResponse();
+  await ordersHandler({ method: 'PUT', url: '/api/orders', body: demoBody, headers: {} }, demoCleanupRes);
+  assert.equal(demoCleanupRes.statusCode, 204);
 
   const optionsRes = createResponse();
   await ordersHandler({ method: 'OPTIONS', url: '/api/orders', headers: {} }, optionsRes);

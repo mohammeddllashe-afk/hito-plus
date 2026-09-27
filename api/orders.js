@@ -3,6 +3,17 @@ const path = require('path');
 
 const dataPath = path.join(process.cwd(), 'orders.json');
 
+function stripDemoOrders(list) {
+  if (!Array.isArray(list)) return [];
+  return list.filter((order) => {
+    if (!order || typeof order !== 'object') return false;
+    const isDemo = String(order.id).trim() === 'v1'
+      || String(order.customer || '').trim().toLowerCase() === 'test'
+      || Number(order.no) === 1001;
+    return !isDemo;
+  });
+}
+
 async function readOrders() {
   const kvUrl = process.env.KV_URL || process.env.KV_REST_API_URL;
 
@@ -20,7 +31,7 @@ async function readOrders() {
   try {
     const file = fs.readFileSync(dataPath, 'utf8');
     const parsed = JSON.parse(file);
-    return Array.isArray(parsed) ? parsed : [];
+    return stripDemoOrders(parsed);
   } catch (error) {
     return [];
   }
@@ -39,7 +50,8 @@ async function writeOrders(orders) {
     }
   }
 
-  fs.writeFileSync(dataPath, JSON.stringify(orders, null, 2));
+  const cleaned = stripDemoOrders(orders);
+  fs.writeFileSync(dataPath, JSON.stringify(cleaned, null, 2));
 }
 
 function cors(res) {
