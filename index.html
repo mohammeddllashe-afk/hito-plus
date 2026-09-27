@@ -495,9 +495,15 @@ let eventSource;
 let knownOrderIds = new Set(orders.map(o => o.id));
 let retryTimer;
 let pollTimer;
+let lastMutationAt = 0;
+let audioEnabled = false;
 let alarmContext;
 let alarmTimer;
 const ringingOrders = new Set();
+
+function normalizeOrders(list){
+  return Array.isArray(list) ? list.filter(Boolean) : [];
+}
 
 function serverBase(){
   const configured = localStorage.getItem(serverKey);
@@ -506,6 +512,27 @@ function serverBase(){
     return window.location.origin;
   }
   return 'http://localhost:3000';
+}
+
+function getAdminPin(){
+  return (localStorage.getItem('stt_admin_pin') || '').trim();
+}
+
+function setAdminPin(pin){
+  if(!pin) return false;
+  const clean = pin.trim();
+  localStorage.setItem('stt_admin_pin', clean);
+  return true;
+}
+
+function requireAdmin(actionLabel){
+  const current = getAdminPin();
+  if(current) return true;
+
+  const pin = prompt(`כדי ${actionLabel} יש להזין סיסמת מנהל`, '');
+  if(!pin || !pin.trim()) return false;
+
+  return setAdminPin(pin);
 }
 
 function configureServer(){
@@ -527,8 +554,13 @@ function setSyncStatus(text, online){
 }
 
 function applyOrders(nextOrders, notify = false){
-  const added = nextOrders.filter(o => !knownOrderIds.has(o.id) && o.status === 'new');
-  orders = nextOrders;
+  const safeOrders = normalizeOrders(nextOrders);
+  if(!safeOrders.length && orders.length && nextOrders !== undefined && !Array.isArray(nextOrders)){
+    return;
+  }
+
+  const added = safeOrders.filter(o => !knownOrderIds.has(o.id) && o.status === 'new');
+  orders = safeOrders;
   knownOrderIds = new Set(orders.map(o => o.id));
   for(const id of [...ringingOrders]){
     const order = orders.find(item => item.id === id);
@@ -537,7 +569,7 @@ function applyOrders(nextOrders, notify = false){
   localStorage.setItem(ordersKey, JSON.stringify(orders));
   render();
 
-  if(notify && added.length){
+  if(notify && added.length && audioEnabled){
     startAlarm(added.map(order => order.id));
     updateTitle(true);
     if('Notification' in window && Notification.permission === 'granted'){
@@ -550,6 +582,8 @@ function applyOrders(nextOrders, notify = false){
 }
 
 async function syncOrders(){
+  if(Date.now() - lastMutationAt < 1500) return;
+
   try{
     const response = await fetch(`${serverBase()}/api/orders`);
     if(!response.ok) throw new Error('sync failed');
@@ -588,10 +622,14 @@ function connectEvents(){
 
 async function pushOrders(){
   localStorage.setItem(ordersKey, JSON.stringify(orders));
+  const adminPin = getAdminPin();
   try{
     const response = await fetch(`${serverBase()}/api/orders`, {
       method:'PUT',
-      headers:{'Content-Type':'application/json'},
+      headers:{
+        'Content-Type':'application/json',
+        ...(adminPin ? {'x-admin-pin': adminPin} : {})
+      },
       body:JSON.stringify(orders)
     });
     if(!response.ok) throw new Error('sync failed');
@@ -668,6 +706,8 @@ function closeModal(){
 }
 
 function openEditOrder(id){
+  if(!requireAdmin('לערוך הזמנה')) return;
+
   const order = orders.find(item => item.id === id);
   if(!order) return;
 
@@ -699,6 +739,10 @@ function closeDetail(event){
 
 async function addOrder(){
 
+  if(!requireAdmin('להוסיף הזמנה')){
+    return;
+  }
+
   const items =
   document.getElementById('items').value.trim();
 
@@ -715,11 +759,13 @@ async function addOrder(){
           no: document.getElementById('orderNo').value.trim() || order.no,
           customer: document.getElementById('customer').value.trim() || 'לקוח',
           items,
-          notes: document.getElementById('notes').value.trim()
+          notes: document.getElementById('notes').value.trim(),
+          createdAt: order.createdAt || Date.now()
         }
       : order
     );
 
+    lastMutationAt = Date.now();
     await pushOrders();
     render();
     closeModal();
@@ -753,12 +799,13 @@ async function addOrder(){
   };
 
   orders.unshift(order);
+  lastMutationAt = Date.now();
 
   await pushOrders();
 
   render();
 
-  startAlarm([order.id]);
+  if(audioEnabled) startAlarm([order.id]);
 
   document.getElementById('customer').value='';
   document.getElementById('orderNo').value='';
@@ -769,6 +816,8 @@ async function addOrder(){
 }
 
 function acceptOrder(id){
+
+  if(!requireAdmin('לאשר הזמנה')) return;
 
   stopAlarm(id);
 
@@ -790,6 +839,8 @@ function acceptOrder(id){
 }
 
 function doneOrder(id){
+
+  if(!requireAdmin('לסמן הזמנה כטופלה')) return;
 
   stopAlarm(id);
 
@@ -813,17 +864,21 @@ function doneOrder(id){
 
 function deleteOrder(id){
 
+  if(!requireAdmin('למחוק הזמנה')) return;
+
   if(!confirm('להסיר את ההזמנה מהמסך?'))
     return;
 
   orders =
   orders.filter(o => o.id !== id);
 
+  lastMutationAt = Date.now();
   pushOrders();
   render();
 }
 
 function clearDoneOrders(){
+  if(!requireAdmin('למחוק הזמנות טופלו')) return;
   const doneCount = orders.filter(o => o.status === 'done').length;
 
   if(!doneCount){
@@ -835,6 +890,7 @@ function clearDoneOrders(){
   }
 
   orders = orders.filter(o => o.status !== 'done');
+  lastMutationAt = Date.now();
   pushOrders();
   render();
 }
@@ -1005,6 +1061,7 @@ function render(){
 }
 
 function startAlarm(ids){
+  if(!audioEnabled) return;
   ids.forEach(id => ringingOrders.add(id));
   if(alarmTimer) return;
 
@@ -1017,9 +1074,10 @@ function startAlarm(ids){
 }
 
 function unlockAudio(){
+  audioEnabled = true;
   try{
-    alarmContext ||= new (window.AudioContext || window.webkitAudioContext)();
-    alarmContext.resume();
+    if(!alarmContext) alarmContext = new (window.AudioContext || window.webkitAudioContext)();
+    if(alarmContext.state === 'suspended') alarmContext.resume();
   }catch(e){}
 }
 
@@ -1067,15 +1125,17 @@ document.addEventListener('visibilitychange', () => {
 
 function tick(){
 
-  document.getElementById('clock').textContent =
-  new Date().toLocaleTimeString(
-    'he-IL',
-    {
-      hour:'2-digit',
-      minute:'2-digit',
-      second:'2-digit'
-    }
-  );
+  const clock = document.getElementById('clock');
+  if(clock){
+    clock.textContent = new Date().toLocaleTimeString(
+      'he-IL',
+      {
+        hour:'2-digit',
+        minute:'2-digit',
+        second:'2-digit'
+      }
+    );
+  }
 
   render();
 }

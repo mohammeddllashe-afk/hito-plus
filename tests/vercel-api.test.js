@@ -4,38 +4,46 @@ const path = require('node:path');
 (async () => {
   const ordersHandler = require(path.join(__dirname, '..', 'api', 'orders.js'));
 
+  const authorizedPin = 'admin123';
   const body = JSON.stringify([{ id: 'v1', status: 'new', no: 1001, customer: 'Test' }]);
 
-  let statusCode = 200;
-  let responseBody = '';
-  const res = {
-    headers: {},
-    statusCode,
-    status(code) {
-      this.statusCode = code;
-      return this;
-    },
-    setHeader(name, value) {
-      this.headers[name] = value;
-    },
-    end(value) {
-      responseBody = value ?? '';
-      return value;
-    },
-    json(payload) {
-      responseBody = JSON.stringify(payload);
-      return payload;
-    }
-  };
+  function createResponse() {
+    return {
+      headers: {},
+      statusCode: 200,
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      setHeader(name, value) {
+        this.headers[name] = value;
+      },
+      end(value) {
+        this.responseBody = value ?? '';
+        return value;
+      },
+      json(payload) {
+        this.responseBody = JSON.stringify(payload);
+        return payload;
+      }
+    };
+  }
 
-  await ordersHandler({ method: 'GET', url: '/api/orders' }, res);
-  assert.equal(res.statusCode, 200);
+  const readRes = createResponse();
+  await ordersHandler({ method: 'GET', url: '/api/orders', headers: {} }, readRes);
+  assert.equal(readRes.statusCode, 200);
 
-  await ordersHandler({ method: 'PUT', url: '/api/orders', body }, res);
-  assert.equal(res.statusCode, 204);
+  const unauthRes = createResponse();
+  await ordersHandler({ method: 'PUT', url: '/api/orders', body, headers: {} }, unauthRes);
+  assert.equal(unauthRes.statusCode, 401);
 
-  await ordersHandler({ method: 'OPTIONS', url: '/api/orders' }, res);
-  assert.equal(res.statusCode, 204);
+  const authRes = createResponse();
+  await ordersHandler({ method: 'PUT', url: '/api/orders', body, headers: { 'x-admin-pin': authorizedPin } }, authRes);
+  assert.equal(authRes.statusCode, 204);
+
+  const optionsRes = createResponse();
+  await ordersHandler({ method: 'OPTIONS', url: '/api/orders', headers: {} }, optionsRes);
+  assert.equal(optionsRes.statusCode, 204);
 
   console.log('vercel-api tests passed');
 })().catch((error) => {
