@@ -495,8 +495,16 @@ function sanitizeOrders(list){
   return list.filter(order => order && typeof order === 'object' && (order.id !== undefined || order.no !== undefined));
 }
 
+function resetLocalOrders(){
+  localStorage.removeItem(ordersKey);
+  localStorage.setItem(ordersKey, JSON.stringify([]));
+  return [];
+}
+
 let orders = sanitizeOrders(JSON.parse(localStorage.getItem(ordersKey) || '[]'));
-localStorage.setItem(ordersKey, JSON.stringify(orders));
+if(!orders.length && localStorage.getItem(ordersKey) === null){
+  orders = resetLocalOrders();
+}
 let editingOrderId = null;
 let eventSource;
 let knownOrderIds = new Set(orders.map(o => o.id));
@@ -546,6 +554,9 @@ function applyOrders(nextOrders, notify = false){
   const safeOrders = sanitizeOrders(nextOrders);
 
   if(!safeOrders.length && orders.length > 0){
+    orders = [];
+    localStorage.setItem(ordersKey, JSON.stringify(orders));
+    render();
     return;
   }
 
@@ -822,9 +833,8 @@ function deleteOrder(id){
   if(!confirm('להסיר את ההזמנה מהמסך?'))
     return;
 
-  orders =
-  orders.filter(o => o.id !== id);
-
+  orders = orders.filter(o => o.id !== id);
+  localStorage.setItem(ordersKey, JSON.stringify(orders));
   pushOrders();
   render();
 }
