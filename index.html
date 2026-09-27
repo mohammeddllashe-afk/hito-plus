@@ -501,12 +501,23 @@ function sanitizeOrders(list){
   });
 }
 
+function clearPersistentDemoState(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(ordersKey) || '[]');
+    const cleaned = sanitizeOrders(raw);
+    if(cleaned.length !== (Array.isArray(raw) ? raw.length : 0)){
+      localStorage.setItem(ordersKey, JSON.stringify(cleaned));
+    }
+  }catch(e){}
+}
+
 let orders = [];
 try{
   orders = sanitizeOrders(JSON.parse(localStorage.getItem(ordersKey) || '[]'));
 }catch(e){
   orders = [];
 }
+clearPersistentDemoState();
 localStorage.setItem(ordersKey, JSON.stringify(orders));
 let editingOrderId = null;
 let eventSource;
@@ -555,6 +566,13 @@ function applyOrders(nextOrders, notify = false){
   }
 
   const safeOrders = sanitizeOrders(nextOrders);
+
+  if(safeOrders.length === 0 && orders.length > 0){
+    localStorage.setItem(ordersKey, JSON.stringify(orders));
+    render();
+    return;
+  }
+
   const added = safeOrders.filter(o => !knownOrderIds.has(o.id) && o.status === 'new');
   orders = safeOrders;
   knownOrderIds = new Set(orders.map(o => o.id));
