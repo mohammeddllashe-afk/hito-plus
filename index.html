@@ -495,17 +495,13 @@ function sanitizeOrders(list){
   return list.filter(order => order && typeof order === 'object' && (order.id !== undefined || order.no !== undefined));
 }
 
-function resetLocalOrders(){
-  const cleared = [];
-  localStorage.setItem(ordersKey, JSON.stringify(cleared));
-  return cleared;
+let orders = [];
+try{
+  orders = sanitizeOrders(JSON.parse(localStorage.getItem(ordersKey) || '[]'));
+}catch(e){
+  orders = [];
 }
-
-let orders = sanitizeOrders(JSON.parse(localStorage.getItem(ordersKey) || '[]'));
-const isStaleDemoState = orders.some(order => order.id === 'v1' || order.customer === 'Test' || Number(order.no) === 1001);
-if(isStaleDemoState){
-  orders = resetLocalOrders();
-}
+localStorage.setItem(ordersKey, JSON.stringify(orders));
 let editingOrderId = null;
 let eventSource;
 let knownOrderIds = new Set(orders.map(o => o.id));
@@ -553,13 +549,6 @@ function applyOrders(nextOrders, notify = false){
   }
 
   const safeOrders = sanitizeOrders(nextOrders);
-
-  if(!safeOrders.length && orders.length > 0){
-    localStorage.setItem(ordersKey, JSON.stringify(orders));
-    render();
-    return;
-  }
-
   const added = safeOrders.filter(o => !knownOrderIds.has(o.id) && o.status === 'new');
   orders = safeOrders;
   knownOrderIds = new Set(orders.map(o => o.id));
