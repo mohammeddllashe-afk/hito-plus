@@ -45,6 +45,36 @@ const path = require('node:path');
   await ordersHandler({ method: 'OPTIONS', url: '/api/orders', headers: {} }, optionsRes);
   assert.equal(optionsRes.statusCode, 204);
 
+  const previousVercel = process.env.VERCEL;
+  const previousKvUrl = process.env.KV_REST_API_URL;
+  const previousKvToken = process.env.KV_REST_API_TOKEN;
+  const previousUpstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const previousUpstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  process.env.VERCEL = '1';
+  delete process.env.KV_REST_API_URL;
+  delete process.env.KV_REST_API_TOKEN;
+  delete process.env.UPSTASH_REDIS_REST_URL;
+  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  const unconfiguredReadRes = createResponse();
+  await ordersHandler({ method: 'GET', url: '/api/orders', headers: {} }, unconfiguredReadRes);
+  assert.equal(unconfiguredReadRes.statusCode, 503);
+
+  const unconfiguredWriteRes = createResponse();
+  await ordersHandler({ method: 'PUT', url: '/api/orders', body: realBody, headers: {} }, unconfiguredWriteRes);
+  assert.equal(unconfiguredWriteRes.statusCode, 503);
+
+  if (previousVercel === undefined) delete process.env.VERCEL;
+  else process.env.VERCEL = previousVercel;
+  if (previousKvUrl === undefined) delete process.env.KV_REST_API_URL;
+  else process.env.KV_REST_API_URL = previousKvUrl;
+  if (previousKvToken === undefined) delete process.env.KV_REST_API_TOKEN;
+  else process.env.KV_REST_API_TOKEN = previousKvToken;
+  if (previousUpstashUrl === undefined) delete process.env.UPSTASH_REDIS_REST_URL;
+  else process.env.UPSTASH_REDIS_REST_URL = previousUpstashUrl;
+  if (previousUpstashToken === undefined) delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  else process.env.UPSTASH_REDIS_REST_TOKEN = previousUpstashToken;
+
   console.log('vercel-api tests passed');
 })().catch((error) => {
   console.error(error);

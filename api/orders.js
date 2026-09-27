@@ -3,6 +3,22 @@ const path = require('path');
 
 const dataPath = path.join(process.cwd(), 'orders.json');
 
+function getKvClientConfig() {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  return { url, token };
+}
+
+async function getKv() {
+  const config = getKvClientConfig();
+  if (!config) {
+    throw new Error('Durable order storage is not configured');
+  }
+  const { createClient } = await import('@vercel/kv');
+  return createClient(config);
+}
+
 function stripDemoOrders(list) {
   if (!Array.isArray(list)) return [];
   return list.filter((order) => {
@@ -15,16 +31,23 @@ function stripDemoOrders(list) {
 }
 
 async function readOrders() {
-  const kvUrl = process.env.KV_URL || process.env.KV_REST_API_URL;
+  if (process.env.VERCEL) {
+    const client = await getKv();
+    const value = await client.get('orders');
+    if (value == null) return [];
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return stripDemoOrders(parsed);
+  }
 
-  if (kvUrl) {
+  const kvConfig = getKvClientConfig();
+  if (kvConfig) {
     try {
-      const { kv } = await import('@vercel/kv');
-      const value = await kv.get('orders');
-      const parsed = JSON.parse(value || '[]');
-      return Array.isArray(parsed) ? parsed : [];
+      const client = await getKv();
+      const value = await client.get('orders');
+      const parsed = value == null ? [] : (typeof value === 'string' ? JSON.parse(value) : value);
+      return stripDemoOrders(parsed);
     } catch (error) {
-      // fall through to local file storage if the KV service is not configured yet
+      // Use local file storage only during local development.
     }
   }
 
@@ -38,15 +61,20 @@ async function readOrders() {
 }
 
 async function writeOrders(orders) {
-  const kvUrl = process.env.KV_URL || process.env.KV_REST_API_URL;
+  if (process.env.VERCEL) {
+    const client = await getKv();
+    await client.set('orders', stripDemoOrders(orders));
+    return;
+  }
 
-  if (kvUrl) {
+  const kvConfig = getKvClientConfig();
+  if (kvConfig) {
     try {
-      const { kv } = await import('@vercel/kv');
-      await kv.set('orders', JSON.stringify(orders));
+      const client = await getKv();
+      await client.set('orders', stripDemoOrders(orders));
       return;
     } catch (error) {
-      // fall back to local file storage when KV is unavailable
+      // Use local file storage only during local development.
     }
   }
 
@@ -69,21 +97,33 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method === 'GET' && req.url === '/api/orders') {
-    return res.status(200).json(await readOrders());
+    try {
+      return res.status(200).json(await readOrders());
+    } catch (error) {
+      res.status(503);
+      return res.json({ error: 'Shared order storage is not configured or unavailable' });
+    }
   }
 
   if (req.method === 'PUT' && req.url === '/api/orders') {
+    let payload;
     try {
-      const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       if (!Array.isArray(payload)) {
         throw new Error('orders must be an array');
       }
+    } catch (error) {
+      res.status(400);
+      return res.json({ error: 'Invalid orders payload' });
+    }
+
+    try {
       await writeOrders(payload);
       res.status(204);
       return res.end();
     } catch (error) {
-      res.status(400);
-      return res.json({ error: 'Invalid orders payload' });
+      res.status(503);
+      return res.json({ error: 'Shared order storage is not configured or unavailable' });
     }
   }
 

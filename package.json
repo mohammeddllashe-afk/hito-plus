@@ -1,0 +1,28 @@
+{
+  "name": "hito-plus",
+  "version": "1.0.0",
+  "description": "המערכת משתמשת בשרת קטן ששומר את ההזמנות ומשדר כל שינוי לכל הטלפונים והטאבלטים המחוברים.",
+  "main": "server.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "node tests/vercel-api.test.js",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mohammeddllashe-afk/hito-plus.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mohammeddllashe-afk/hito-plus/issues"
+  },
+  "homepage": "https://github.com/mohammeddllashe-afk/hito-plus#readme",
+  "dependencies": {
+    "@vercel/kv": "^3.0.0"
+  }
+}

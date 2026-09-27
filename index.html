@@ -610,13 +610,13 @@ function applyOrders(nextOrders, notify = false){
 async function syncOrders(){
   try{
     const response = await fetch(`${serverBase()}/api/orders`);
-    if(!response.ok) throw new Error('sync failed');
+    if(!response.ok) throw new Error(response.status === 503 ? 'storage-unavailable' : 'sync failed');
     applyOrders(await response.json());
     setSyncStatus('מסונכרן', true);
     connectEvents();
     clearTimeout(retryTimer);
   }catch(e){
-    setSyncStatus('אין חיבור לשרת', false);
+    setSyncStatus(e.message === 'storage-unavailable' ? 'נדרש אחסון משותף' : 'אין חיבור לשרת', false);
     clearTimeout(retryTimer);
     retryTimer = setTimeout(syncOrders, 3000);
   }
@@ -652,10 +652,10 @@ async function pushOrders(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(orders)
     });
-    if(!response.ok) throw new Error('sync failed');
+    if(!response.ok) throw new Error(response.status === 503 ? 'storage-unavailable' : 'sync failed');
     setSyncStatus('מסונכרן', true);
   }catch(e){
-    setSyncStatus('לא נשמר בשרת', false);
+    setSyncStatus(e.message === 'storage-unavailable' ? 'ההזמנה לא נשמרה: נדרש אחסון משותף' : 'לא נשמר בשרת', false);
     clearTimeout(retryTimer);
     retryTimer = setTimeout(syncOrders, 3000);
   }
