@@ -489,7 +489,21 @@ textarea{
 
 const ordersKey = 'stt_kitchen_orders';
 const serverKey = 'stt_server_url';
-let orders = JSON.parse(localStorage.getItem(ordersKey) || '[]');
+
+function sanitizeOrders(list){
+  const safe = Array.isArray(list) ? list.filter(Boolean) : [];
+  return safe.filter(order => {
+    const isDemo = order && (
+      order.id === 'v1' ||
+      order.customer === 'Test' ||
+      Number(order.no) === 1001
+    );
+    return !isDemo || (order.items && order.items.trim().length > 0);
+  });
+}
+
+let orders = sanitizeOrders(JSON.parse(localStorage.getItem(ordersKey) || '[]'));
+localStorage.setItem(ordersKey, JSON.stringify(orders));
 let editingOrderId = null;
 let eventSource;
 let knownOrderIds = new Set(orders.map(o => o.id));
@@ -532,7 +546,7 @@ function setSyncStatus(text, online){
 }
 
 function applyOrders(nextOrders, notify = false){
-  const safeOrders = normalizeOrders(nextOrders);
+  const safeOrders = sanitizeOrders(nextOrders);
   if(!safeOrders.length && orders.length && nextOrders !== undefined && !Array.isArray(nextOrders)){
     return;
   }
@@ -780,20 +794,12 @@ async function addOrder(){
 }
 
 function acceptOrder(id){
-
   stopAlarm(id);
 
-  orders = orders.map(o =>
-    o.id === id
-    ? (() => {
-        const {acceptedTime, ...order} = o;
-        return {
-          ...order,
-          status:'work',
-          doneAt:null
-        };
-      })()
-    : o
+  orders = orders.map(order =>
+    order.id === id
+      ? { ...order, status: 'work', doneAt: null, doneTime: null }
+      : order
   );
 
   pushOrders();
@@ -801,21 +807,12 @@ function acceptOrder(id){
 }
 
 function doneOrder(id){
-
   stopAlarm(id);
 
-  orders = orders.map(o =>
-    o.id === id
-    ? (() => {
-        const {acceptedTime, ...order} = o;
-        return {
-          ...order,
-          status:'done',
-          doneTime:order.doneTime || formatTime(),
-          doneAt:order.doneAt || Date.now()
-        };
-      })()
-    : o
+  orders = orders.map(order =>
+    order.id === id
+      ? { ...order, status: 'done', doneTime: order.doneTime || formatTime(), doneAt: order.doneAt || Date.now() }
+      : order
   );
 
   pushOrders();
