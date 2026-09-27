@@ -601,11 +601,11 @@ function applyOrders(nextOrders, notify = false){
   }
 }
 
-async function syncOrders(){
+async function syncOrders(notifyUpdates = false){
   try{
     const response = await fetch(`${serverBase()}/api/orders`);
     if(!response.ok) throw new Error(response.status === 503 ? 'storage-unavailable' : 'sync failed');
-    applyOrders(await response.json());
+    applyOrders(await response.json(), notifyUpdates);
     setSyncStatus('מסונכרן', true);
     connectEvents();
     clearTimeout(retryTimer);
@@ -622,7 +622,7 @@ function connectEvents(){
 
   if(isPublicHost){
     clearInterval(pollTimer);
-    pollTimer = setInterval(() => syncOrders(), 5000);
+    pollTimer = setInterval(() => syncOrders(true), 5000);
     setSyncStatus('מסונכרן', true);
     return;
   }
