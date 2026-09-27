@@ -121,6 +121,34 @@ button{
   padding:12px 17px;
 }
 
+.syncTools{
+  display:flex;
+  gap:9px;
+  align-items:center;
+}
+
+.notify{
+  background:#2a313a;
+  color:#fff;
+  padding:12px 14px;
+}
+
+.clearDone{
+  background:var(--red);
+  color:#fff;
+  padding:12px 14px;
+}
+
+button:disabled{
+  cursor:not-allowed;
+  opacity:.45;
+}
+
+.syncStatus{
+  color:var(--muted);
+  font-size:13px;
+}
+
 .grid{
   display:grid;
   grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
@@ -133,6 +161,7 @@ button{
   border-radius:16px;
   overflow:hidden;
   box-shadow:0 14px 40px rgba(0,0,0,.32);
+  cursor:pointer;
 }
 
 .card.new{
@@ -151,8 +180,17 @@ button{
 }
 
 .num{
-  font-size:25px;
+  font-size:14px;
   font-weight:900;
+  color:var(--muted);
+  margin-top:3px;
+}
+
+.timer{
+  font-size:30px;
+  line-height:1;
+  font-weight:900;
+  letter-spacing:0;
 }
 
 .status{
@@ -175,12 +213,6 @@ button{
 .s-done{
   background:#173827;
   color:#84eab0;
-}
-
-.timer{
-  font-size:15px;
-  font-weight:800;
-  margin-top:5px;
 }
 
 .timer.late{
@@ -255,6 +287,12 @@ button{
   padding:13px;
 }
 
+.btn-edit{
+  background:#5b7cfa;
+  color:white;
+  padding:13px;
+}
+
 .empty{
   grid-column:1/-1;
   text-align:center;
@@ -284,6 +322,29 @@ button{
   border:1px solid var(--line);
   border-radius:18px;
   padding:18px;
+}
+
+.detailModal{
+  width:min(900px,100%);
+}
+
+.detailItems{
+  white-space:pre-wrap;
+  font-size:clamp(24px,4vw,42px);
+  line-height:1.45;
+  font-weight:800;
+  padding:18px 0;
+}
+
+.detailCustomer,
+.detailNote{
+  font-size:20px;
+  line-height:1.5;
+}
+
+.detailNote{
+  margin-top:16px;
+  color:#ffd677;
 }
 
 label{
@@ -368,7 +429,13 @@ textarea{
       <div class="stat">הושלמו: <strong id="doneCount">0</strong></div>
     </div>
 
-    <button class="add" onclick="openModal()">+ הוספת הזמנה</button>
+    <div class="syncTools">
+      <span class="syncStatus" id="syncStatus">מתחבר...</span>
+      <button class="notify" onclick="configureServer()">כתובת שרת</button>
+      <button class="notify" id="notifyButton" onclick="enableNotifications()">🔔 הפעל התראות</button>
+      <button class="clearDone" id="clearDoneButton" onclick="clearDoneOrders()">מחק טופלו</button>
+      <button class="add" onclick="openModal()">+ הוספת הזמנה</button>
+    </div>
 
   </div>
 
@@ -380,7 +447,7 @@ textarea{
 
   <div class="modal">
 
-    <h2>הזמנה חדשה</h2>
+    <h2 id="orderModalTitle">הזמנה חדשה</h2>
 
     <label>שם לקוח</label>
     <input id="customer" placeholder="שם לקוח" />
@@ -399,18 +466,150 @@ textarea{
 
     <div class="modalActions">
       <button class="btn-secondary" onclick="closeModal()">ביטול</button>
-      <button class="btn-done" onclick="addOrder()">שלח למטבח</button>
+      <button class="btn-done" id="orderSubmitButton" onclick="addOrder()">שלח למטבח</button>
     </div>
 
   </div>
 
 </div>
 
+<div class="modalWrap" id="detailModalWrap" onclick="closeDetail(event)">
+  <div class="modal detailModal" onclick="event.stopPropagation()">
+    <h2 id="detailTitle"></h2>
+    <div class="detailCustomer" id="detailCustomer"></div>
+    <div class="detailItems" id="detailItems"></div>
+    <div class="detailNote" id="detailNote"></div>
+    <div class="modalActions">
+      <button class="btn-secondary" onclick="closeDetail()">סגור</button>
+    </div>
+  </div>
+</div>
+
 <script>
 
-let orders = JSON.parse(
-  localStorage.getItem('stt_kitchen_orders') || '[]'
-);
+const ordersKey = 'stt_kitchen_orders';
+const serverKey = 'stt_server_url';
+let orders = JSON.parse(localStorage.getItem(ordersKey) || '[]');
+let editingOrderId = null;
+let eventSource;
+let knownOrderIds = new Set(orders.map(o => o.id));
+let retryTimer;
+let pollTimer;
+let alarmContext;
+let alarmTimer;
+const ringingOrders = new Set();
+
+function serverBase(){
+  const configured = localStorage.getItem(serverKey);
+  if(configured) return configured.replace(/\/$/, '');
+  if(window.location.protocol === 'http:' || window.location.protocol === 'https:'){
+    return window.location.origin;
+  }
+  return 'http://localhost:3000';
+}
+
+function configureServer(){
+  const value = prompt('כתובת השרת, לדוגמה: http://192.168.1.20:3000', serverBase());
+  if(!value) return;
+  localStorage.setItem(serverKey, value.trim().replace(/\/$/, ''));
+  if(eventSource) eventSource.close();
+  syncOrders();
+}
+
+function updateTitle(hasUpdates){
+  document.title = hasUpdates ? '(חדש) Sweet Tic Tac | Kitchen' : 'Sweet Tic Tac | Kitchen';
+}
+
+function setSyncStatus(text, online){
+  const status = document.getElementById('syncStatus');
+  status.textContent = text;
+  status.style.color = online ? 'var(--green)' : 'var(--yellow)';
+}
+
+function applyOrders(nextOrders, notify = false){
+  const added = nextOrders.filter(o => !knownOrderIds.has(o.id) && o.status === 'new');
+  orders = nextOrders;
+  knownOrderIds = new Set(orders.map(o => o.id));
+  for(const id of [...ringingOrders]){
+    const order = orders.find(item => item.id === id);
+    if(!order || order.status !== 'new') stopAlarm(id);
+  }
+  localStorage.setItem(ordersKey, JSON.stringify(orders));
+  render();
+
+  if(notify && added.length){
+    startAlarm(added.map(order => order.id));
+    updateTitle(true);
+    if('Notification' in window && Notification.permission === 'granted'){
+      new Notification('הזמנה חדשה', {
+        body: `הזמנה #${added[0].no} נכנסה למטבח`,
+        tag: `order-${added[0].id}`
+      });
+    }
+  }
+}
+
+async function syncOrders(){
+  try{
+    const response = await fetch(`${serverBase()}/api/orders`);
+    if(!response.ok) throw new Error('sync failed');
+    applyOrders(await response.json());
+    setSyncStatus('מסונכרן', true);
+    connectEvents();
+    clearTimeout(retryTimer);
+  }catch(e){
+    setSyncStatus('אין חיבור לשרת', false);
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(syncOrders, 3000);
+  }
+}
+
+function connectEvents(){
+  const base = serverBase();
+  const isPublicHost = /vercel\.app|vercel\.dev|netlify\.app|render\.com|firebaseapp\.com/i.test(base);
+
+  if(isPublicHost){
+    clearInterval(pollTimer);
+    pollTimer = setInterval(() => syncOrders(), 5000);
+    setSyncStatus('מסונכרן', true);
+    return;
+  }
+
+  if(eventSource) eventSource.close();
+  eventSource = new EventSource(`${base}/events`);
+  eventSource.onopen = () => setSyncStatus('מסונכרן', true);
+  eventSource.onmessage = event => applyOrders(JSON.parse(event.data), true);
+  eventSource.onerror = () => {
+    setSyncStatus('מנסה להתחבר...', false);
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(syncOrders, 3000);
+  };
+}
+
+async function pushOrders(){
+  localStorage.setItem(ordersKey, JSON.stringify(orders));
+  try{
+    const response = await fetch(`${serverBase()}/api/orders`, {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(orders)
+    });
+    if(!response.ok) throw new Error('sync failed');
+    setSyncStatus('מסונכרן', true);
+  }catch(e){
+    setSyncStatus('לא נשמר בשרת', false);
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(syncOrders, 3000);
+  }
+}
+
+async function enableNotifications(){
+  unlockAudio();
+  if(!('Notification' in window)) return;
+  const permission = await Notification.requestPermission();
+  const button = document.getElementById('notifyButton');
+  button.textContent = permission === 'granted' ? '🔔 התראות פעילות' : '🔕 התראות חסומות';
+}
 
 function save(){
   localStorage.setItem(
@@ -454,6 +653,13 @@ function esc(s=''){
 }
 
 function openModal(){
+  editingOrderId = null;
+  document.getElementById('orderModalTitle').textContent = 'הזמנה חדשה';
+  document.getElementById('orderSubmitButton').textContent = 'שלח למטבח';
+  document.getElementById('customer').value = '';
+  document.getElementById('orderNo').value = '';
+  document.getElementById('items').value = '';
+  document.getElementById('notes').value = '';
   document.getElementById('modalWrap').classList.add('open');
 }
 
@@ -461,13 +667,62 @@ function closeModal(){
   document.getElementById('modalWrap').classList.remove('open');
 }
 
-function addOrder(){
+function openEditOrder(id){
+  const order = orders.find(item => item.id === id);
+  if(!order) return;
+
+  editingOrderId = id;
+  document.getElementById('orderModalTitle').textContent = `עריכת הזמנה #${order.no}`;
+  document.getElementById('customer').value = order.customer;
+  document.getElementById('orderNo').value = order.no;
+  document.getElementById('items').value = order.items;
+  document.getElementById('notes').value = order.notes;
+  document.getElementById('orderSubmitButton').textContent = 'שמור שינויים';
+  document.getElementById('modalWrap').classList.add('open');
+}
+
+function openOrder(id){
+  const order = orders.find(item => item.id === id);
+  if(!order) return;
+
+  document.getElementById('detailTitle').textContent = `הזמנה #${order.no}`;
+  document.getElementById('detailCustomer').textContent = `לקוח: ${order.customer}`;
+  document.getElementById('detailItems').textContent = order.items;
+  document.getElementById('detailNote').textContent = order.notes ? `הערה: ${order.notes}` : '';
+  document.getElementById('detailModalWrap').classList.add('open');
+}
+
+function closeDetail(event){
+  if(event && event.target !== event.currentTarget) return;
+  document.getElementById('detailModalWrap').classList.remove('open');
+}
+
+async function addOrder(){
 
   const items =
   document.getElementById('items').value.trim();
 
   if(!items){
     alert('יש להכניס פריטי הזמנה');
+    return;
+  }
+
+  if(editingOrderId !== null){
+    orders = orders.map(order =>
+      order.id === editingOrderId
+      ? {
+          ...order,
+          no: document.getElementById('orderNo').value.trim() || order.no,
+          customer: document.getElementById('customer').value.trim() || 'לקוח',
+          items,
+          notes: document.getElementById('notes').value.trim()
+        }
+      : order
+    );
+
+    await pushOrders();
+    render();
+    closeModal();
     return;
   }
 
@@ -492,8 +747,6 @@ function addOrder(){
 
     createdTime: formatTime(),
 
-    acceptedTime: null,
-
     doneTime: null,
 
     status:'new'
@@ -501,11 +754,11 @@ function addOrder(){
 
   orders.unshift(order);
 
-  save();
+  await pushOrders();
 
   render();
 
-  sound();
+  startAlarm([order.id]);
 
   document.getElementById('customer').value='';
   document.getElementById('orderNo').value='';
@@ -517,33 +770,44 @@ function addOrder(){
 
 function acceptOrder(id){
 
+  stopAlarm(id);
+
   orders = orders.map(o =>
     o.id === id
-    ? {
-        ...o,
-        status:'work',
-        acceptedTime:o.acceptedTime || formatTime()
-      }
+    ? (() => {
+        const {acceptedTime, ...order} = o;
+        return {
+          ...order,
+          status:'work',
+          doneAt:null
+        };
+      })()
     : o
   );
 
-  save();
+  pushOrders();
   render();
 }
 
 function doneOrder(id){
 
+  stopAlarm(id);
+
   orders = orders.map(o =>
     o.id === id
-    ? {
-        ...o,
-        status:'done',
-        doneTime:o.doneTime || formatTime()
-      }
+    ? (() => {
+        const {acceptedTime, ...order} = o;
+        return {
+          ...order,
+          status:'done',
+          doneTime:order.doneTime || formatTime(),
+          doneAt:order.doneAt || Date.now()
+        };
+      })()
     : o
   );
 
-  save();
+  pushOrders();
   render();
 }
 
@@ -555,14 +819,30 @@ function deleteOrder(id){
   orders =
   orders.filter(o => o.id !== id);
 
-  save();
+  pushOrders();
   render();
 }
 
-function elapsed(createdAt){
+function clearDoneOrders(){
+  const doneCount = orders.filter(o => o.status === 'done').length;
+
+  if(!doneCount){
+    return;
+  }
+
+  if(!confirm(`למחוק ${doneCount} הזמנות שסומנו כטופלו?`)){
+    return;
+  }
+
+  orders = orders.filter(o => o.status !== 'done');
+  pushOrders();
+  render();
+}
+
+function elapsed(createdAt, endAt = Date.now()){
 
   const diff =
-  Math.max(0, Date.now() - createdAt);
+  Math.max(0, endAt - createdAt);
 
   const m =
   Math.floor(diff / 60000);
@@ -583,6 +863,9 @@ function render(){
 
   document.getElementById('doneCount').textContent =
   orders.filter(o => o.status === 'done').length;
+
+  document.getElementById('clearDoneButton').disabled =
+  !orders.some(o => o.status === 'done');
 
   const root =
   document.getElementById('orders');
@@ -616,18 +899,18 @@ function render(){
 
     return `
 
-    <article class="card ${o.status==='new'?'new':''} ${o.status==='done'?'done':''}">
+    <article class="card ${o.status==='new'?'new':''} ${o.status==='done'?'done':''}" onclick="openOrder(${o.id})">
 
       <div class="cardTop">
 
         <div>
 
-          <div class="num">
-            #${esc(o.no)}
+          <div class="timer ${late}">
+            ⏱ ${elapsed(o.createdAt, o.status === 'done' ? o.doneAt || o.createdAt : Date.now())}
           </div>
 
-          <div class="timer ${late}">
-            ⏱ ${elapsed(o.createdAt)}
+          <div class="num">
+            הזמנה #${esc(o.no)}
           </div>
 
         </div>
@@ -661,10 +944,6 @@ function render(){
           </div>
 
           <div>
-            אישור: ${o.acceptedTime || '—'}
-          </div>
-
-          <div>
             טופל: ${o.doneTime || '—'}
           </div>
 
@@ -672,7 +951,7 @@ function render(){
 
       </div>
 
-      <div class="actions">
+      <div class="actions" onclick="event.stopPropagation()">
 
         ${
           o.status === 'new'
@@ -705,6 +984,12 @@ function render(){
         }
 
         <button
+          class="btn-edit"
+          onclick="openEditOrder(${o.id})">
+          ערוך
+        </button>
+
+        <button
           class="btn-delete"
           onclick="deleteOrder(${o.id})">
           הסר
@@ -719,54 +1004,66 @@ function render(){
   }).join('');
 }
 
-function sound(){
+function startAlarm(ids){
+  ids.forEach(id => ringingOrders.add(id));
+  if(alarmTimer) return;
 
   try{
-
-    const ctx =
-    new (window.AudioContext || window.webkitAudioContext)();
-
-    [880,1175,880].forEach((freq,i)=>{
-
-      const osc =
-      ctx.createOscillator();
-
-      const gain =
-      ctx.createGain();
-
-      osc.connect(gain);
-
-      gain.connect(ctx.destination);
-
-      osc.frequency.value = freq;
-
-      const start =
-      ctx.currentTime + i * .18;
-
-      gain.gain.setValueAtTime(
-        .001,
-        start
-      );
-
-      gain.gain.exponentialRampToValueAtTime(
-        .22,
-        start + .02
-      );
-
-      gain.gain.exponentialRampToValueAtTime(
-        .001,
-        start + .14
-      );
-
-      osc.start(start);
-
-      osc.stop(start + .15);
-
-    });
-
+    alarmContext ||= new (window.AudioContext || window.webkitAudioContext)();
+    alarmContext.resume();
+    playAlarmBurst();
+    alarmTimer = setInterval(playAlarmBurst, 1400);
   }catch(e){}
-
 }
+
+function unlockAudio(){
+  try{
+    alarmContext ||= new (window.AudioContext || window.webkitAudioContext)();
+    alarmContext.resume();
+  }catch(e){}
+}
+
+function playAlarmBurst(){
+  if(!ringingOrders.size){
+    stopAlarm();
+    return;
+  }
+
+  try{
+    const frequencies = [760, 1040, 760, 1040];
+    frequencies.forEach((frequency, index) => {
+      const oscillator = alarmContext.createOscillator();
+      const gain = alarmContext.createGain();
+      const start = alarmContext.currentTime + index * .16;
+      oscillator.type = 'square';
+      oscillator.frequency.value = frequency;
+      oscillator.connect(gain);
+      gain.connect(alarmContext.destination);
+      gain.gain.setValueAtTime(.001, start);
+      gain.gain.exponentialRampToValueAtTime(.42, start + .025);
+      gain.gain.exponentialRampToValueAtTime(.001, start + .13);
+      oscillator.start(start);
+      oscillator.stop(start + .14);
+    });
+  }catch(e){}
+}
+
+function stopAlarm(id){
+  if(id !== undefined) ringingOrders.delete(id);
+  if(ringingOrders.size || !alarmTimer) return;
+  clearInterval(alarmTimer);
+  alarmTimer = null;
+}
+
+document.addEventListener('pointerdown', unlockAudio, {once:true});
+
+if('Notification' in window && Notification.permission === 'granted'){
+  document.getElementById('notifyButton').textContent = '🔔 התראות פעילות';
+}
+
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) updateTitle(false);
+});
 
 function tick(){
 
@@ -791,16 +1088,13 @@ window.addEventListener('storage',e=>{
 
   if(e.key === 'stt_kitchen_orders'){
 
-    orders =
-    JSON.parse(e.newValue || '[]');
-
-    render();
-
-    sound();
+    applyOrders(JSON.parse(e.newValue || '[]'), true);
 
   }
 
 });
+
+syncOrders();
 
 </script>
 
