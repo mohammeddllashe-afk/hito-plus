@@ -4,7 +4,6 @@ const path = require('node:path');
 (async () => {
   const ordersHandler = require(path.join(__dirname, '..', 'api', 'orders.js'));
 
-  const authorizedPin = 'admin123';
   const body = JSON.stringify([{ id: 'v1', status: 'new', no: 1001, customer: 'Test' }]);
 
   function createResponse() {
@@ -33,13 +32,9 @@ const path = require('node:path');
   await ordersHandler({ method: 'GET', url: '/api/orders', headers: {} }, readRes);
   assert.equal(readRes.statusCode, 200);
 
-  const unauthRes = createResponse();
-  await ordersHandler({ method: 'PUT', url: '/api/orders', body, headers: {} }, unauthRes);
-  assert.equal(unauthRes.statusCode, 401);
-
-  const authRes = createResponse();
-  await ordersHandler({ method: 'PUT', url: '/api/orders', body, headers: { 'x-admin-pin': authorizedPin } }, authRes);
-  assert.equal(authRes.statusCode, 204);
+  const publicWriteRes = createResponse();
+  await ordersHandler({ method: 'PUT', url: '/api/orders', body, headers: {} }, publicWriteRes);
+  assert.equal(publicWriteRes.statusCode, 204);
 
   const optionsRes = createResponse();
   await ordersHandler({ method: 'OPTIONS', url: '/api/orders', headers: {} }, optionsRes);

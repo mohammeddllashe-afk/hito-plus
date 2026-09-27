@@ -495,7 +495,6 @@ let eventSource;
 let knownOrderIds = new Set(orders.map(o => o.id));
 let retryTimer;
 let pollTimer;
-let lastMutationAt = 0;
 let audioEnabled = false;
 let alarmContext;
 let alarmTimer;
@@ -512,27 +511,6 @@ function serverBase(){
     return window.location.origin;
   }
   return 'http://localhost:3000';
-}
-
-function getAdminPin(){
-  return (localStorage.getItem('stt_admin_pin') || '').trim();
-}
-
-function setAdminPin(pin){
-  if(!pin) return false;
-  const clean = pin.trim();
-  localStorage.setItem('stt_admin_pin', clean);
-  return true;
-}
-
-function requireAdmin(actionLabel){
-  const current = getAdminPin();
-  if(current) return true;
-
-  const pin = prompt(`כדי ${actionLabel} יש להזין סיסמת מנהל`, '');
-  if(!pin || !pin.trim()) return false;
-
-  return setAdminPin(pin);
 }
 
 function configureServer(){
@@ -582,8 +560,6 @@ function applyOrders(nextOrders, notify = false){
 }
 
 async function syncOrders(){
-  if(Date.now() - lastMutationAt < 1500) return;
-
   try{
     const response = await fetch(`${serverBase()}/api/orders`);
     if(!response.ok) throw new Error('sync failed');
@@ -622,14 +598,10 @@ function connectEvents(){
 
 async function pushOrders(){
   localStorage.setItem(ordersKey, JSON.stringify(orders));
-  const adminPin = getAdminPin();
   try{
     const response = await fetch(`${serverBase()}/api/orders`, {
       method:'PUT',
-      headers:{
-        'Content-Type':'application/json',
-        ...(adminPin ? {'x-admin-pin': adminPin} : {})
-      },
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify(orders)
     });
     if(!response.ok) throw new Error('sync failed');
@@ -706,8 +678,6 @@ function closeModal(){
 }
 
 function openEditOrder(id){
-  if(!requireAdmin('לערוך הזמנה')) return;
-
   const order = orders.find(item => item.id === id);
   if(!order) return;
 
@@ -739,10 +709,6 @@ function closeDetail(event){
 
 async function addOrder(){
 
-  if(!requireAdmin('להוסיף הזמנה')){
-    return;
-  }
-
   const items =
   document.getElementById('items').value.trim();
 
@@ -765,7 +731,6 @@ async function addOrder(){
       : order
     );
 
-    lastMutationAt = Date.now();
     await pushOrders();
     render();
     closeModal();
@@ -799,7 +764,6 @@ async function addOrder(){
   };
 
   orders.unshift(order);
-  lastMutationAt = Date.now();
 
   await pushOrders();
 
@@ -816,8 +780,6 @@ async function addOrder(){
 }
 
 function acceptOrder(id){
-
-  if(!requireAdmin('לאשר הזמנה')) return;
 
   stopAlarm(id);
 
@@ -839,8 +801,6 @@ function acceptOrder(id){
 }
 
 function doneOrder(id){
-
-  if(!requireAdmin('לסמן הזמנה כטופלה')) return;
 
   stopAlarm(id);
 
@@ -864,21 +824,17 @@ function doneOrder(id){
 
 function deleteOrder(id){
 
-  if(!requireAdmin('למחוק הזמנה')) return;
-
   if(!confirm('להסיר את ההזמנה מהמסך?'))
     return;
 
   orders =
   orders.filter(o => o.id !== id);
 
-  lastMutationAt = Date.now();
   pushOrders();
   render();
 }
 
 function clearDoneOrders(){
-  if(!requireAdmin('למחוק הזמנות טופלו')) return;
   const doneCount = orders.filter(o => o.status === 'done').length;
 
   if(!doneCount){
@@ -890,7 +846,6 @@ function clearDoneOrders(){
   }
 
   orders = orders.filter(o => o.status !== 'done');
-  lastMutationAt = Date.now();
   pushOrders();
   render();
 }
