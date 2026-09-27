@@ -491,15 +491,8 @@ const ordersKey = 'stt_kitchen_orders';
 const serverKey = 'stt_server_url';
 
 function sanitizeOrders(list){
-  const safe = Array.isArray(list) ? list.filter(Boolean) : [];
-  return safe.filter(order => {
-    const isDemo = order && (
-      order.id === 'v1' ||
-      order.customer === 'Test' ||
-      Number(order.no) === 1001
-    );
-    return !isDemo || (order.items && order.items.trim().length > 0);
-  });
+  if(!Array.isArray(list)) return [];
+  return list.filter(order => order && typeof order === 'object' && (order.id !== undefined || order.no !== undefined));
 }
 
 let orders = sanitizeOrders(JSON.parse(localStorage.getItem(ordersKey) || '[]'));
@@ -546,8 +539,13 @@ function setSyncStatus(text, online){
 }
 
 function applyOrders(nextOrders, notify = false){
+  if(!Array.isArray(nextOrders)){
+    return;
+  }
+
   const safeOrders = sanitizeOrders(nextOrders);
-  if(!safeOrders.length && orders.length && nextOrders !== undefined && !Array.isArray(nextOrders)){
+
+  if(!safeOrders.length && orders.length > 0){
     return;
   }
 
