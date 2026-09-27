@@ -496,13 +496,14 @@ function sanitizeOrders(list){
 }
 
 function resetLocalOrders(){
-  localStorage.removeItem(ordersKey);
-  localStorage.setItem(ordersKey, JSON.stringify([]));
-  return [];
+  const cleared = [];
+  localStorage.setItem(ordersKey, JSON.stringify(cleared));
+  return cleared;
 }
 
 let orders = sanitizeOrders(JSON.parse(localStorage.getItem(ordersKey) || '[]'));
-if(!orders.length && localStorage.getItem(ordersKey) === null){
+const isStaleDemoState = orders.some(order => order.id === 'v1' || order.customer === 'Test' || Number(order.no) === 1001);
+if(isStaleDemoState){
   orders = resetLocalOrders();
 }
 let editingOrderId = null;
@@ -554,7 +555,6 @@ function applyOrders(nextOrders, notify = false){
   const safeOrders = sanitizeOrders(nextOrders);
 
   if(!safeOrders.length && orders.length > 0){
-    orders = [];
     localStorage.setItem(ordersKey, JSON.stringify(orders));
     render();
     return;
