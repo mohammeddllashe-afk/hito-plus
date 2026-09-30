@@ -1,0 +1,39 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hito_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    volumes:
+      - ./backend:/usr/src/app:cached
+      - /usr/src/app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "postgres://postgres:postgres@db:5432/hito_dev"
+      PORT: 3000
+      NODE_ENV: development
+      JWT_SECRET: change_me
+      DB_WAIT_RETRIES: 30
+      DB_WAIT_INTERVAL_MS: 2000
+    depends_on:
+      - db
+    command: sh -c "npm install && node src/wait-for-db.js && npm run migrate && npm run dev"
+
+volumes:
+  db_data:

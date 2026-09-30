@@ -1,0 +1,117 @@
+openapi: 3.0.3
+info:
+  title: HITO-Plus API (skeleton)
+  version: "1.0.0"
+  description: OpenAPI skeleton for core endpoints (auth, users, tasks, forms, assets)
+servers:
+  - url: https://api.example.com/{tenant}
+    variables:
+      tenant:
+        default: default
+paths:
+  /auth/login:
+    post:
+      summary: Login with username/password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: OK
+  /auth/refresh:
+    post:
+      summary: Refresh JWT token
+  /users:
+    get:
+      summary: List users (respect tenant & scope)
+    post:
+      summary: Create user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+  /users/{userId}:
+    get:
+      summary: Get user
+    patch:
+      summary: Update user
+  /tasks:
+    get:
+      summary: List tasks
+    post:
+      summary: Create task
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+  /tasks/{taskId}:
+    get:
+      summary: Get task
+    patch:
+      summary: Update task (status, assignee, comment)
+  /forms:
+    get:
+      summary: List form templates
+    post:
+      summary: Create form template
+  /forms/{formId}/submissions:
+    post:
+      summary: Submit a form
+  /assets:
+    get:
+      summary: List assets
+    post:
+      summary: Create asset
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+    TaskCreate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        siteId:
+          type: string
+        assigneeUserId:
+          type: string
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

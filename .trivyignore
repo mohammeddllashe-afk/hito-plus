@@ -1,0 +1,10 @@
+# Trivy ignore file for hito-plus
+# Each line contains a CVE ID to ignore and optional comment after '#'
+# Example:
+# CVE-2021-44228  # false positive in this base image
+
+# Add CVEs to ignore here, one per line.
+# IMPORTANT: Document why each CVE is ignored in infra/TRIVY_IGNORE.md
+
+# (example placeholder entries - replace with real CVE IDs if needed)
+#CVE-2020-12345  # example placeholder

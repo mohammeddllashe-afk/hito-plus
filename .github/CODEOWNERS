@@ -1,0 +1,16 @@
+# CODEOWNERS
+# Owners listed here will be requested for review automatically when files change
+# Update the handles below to your organization's teams or individual owners
+
+# Infra and security-related files
+/infra/ @mohammeddllashe-afk
+/.trivyignore @mohammeddllashe-afk
+
+# Backend code
+/backend/ @mohammeddllashe-afk
+
+# CI and workflows
+/.github/workflows/ @mohammeddllashe-afk
+
+# PR template for trivy ignore changes
+/.github/PULL_REQUEST_TEMPLATE/TRIVY_IGNORE_CHANGE.md @mohammeddllashe-afk
